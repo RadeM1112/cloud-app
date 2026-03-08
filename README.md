@@ -19,6 +19,7 @@ Service) w chmurze Azure.
 -   [x] **Artefakt 1:** Zaplanowano strukturę folderów i diagram C4
     (dostępny w `/docs`).
 -   [x ] **Artefakt 2:** Konfiguracja środowiska Docker (w trakcie...).
+   [x ] **Artefakt 3:** 
 
 > **Informacja:** Ten plik będzie ewoluował. W kolejnych etapach dodamy
 > tutaj sekcje 'Quick Start', opis zmiennych środowiskowych oraz

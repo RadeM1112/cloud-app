@@ -1,7 +1,12 @@
-#Frontend
-#Wykorzystujemy obraz bazowy serwera Nginx na dystrybucji Alpine Linux
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+ 
 FROM nginx:alpine
-#Informacja dla Dockera, że kontener nasłuchuje na porcie 80
+
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
-#Uruchomienie serwera Nginx w trybie pierwszoplanowym
 CMD ["nginx", "-g", "daemon off;"]
