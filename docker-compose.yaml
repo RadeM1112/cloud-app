@@ -38,6 +38,8 @@ services:
       - "1433:1433"
     networks:
       - cloud-network
+    volumes:
+      - sql-data:/var/opt/mssql 
     healthcheck:
       test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "StrongPassword123!", "-Q", "SELECT 1"]
       interval: 10s
@@ -47,3 +49,8 @@ services:
 networks:
   cloud-network:
     driver: bridge
+    
+volumes:
+  sql-data:
+    
+ 
