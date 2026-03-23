@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using CloudBackend.Data;
 using CloudBackend.Models;
+using CloudBackend.DTOs;
 
 namespace CloudBackend.Controllers;
 
@@ -48,22 +49,22 @@ public class TasksController : ControllerBase
     public async Task<ActionResult<TaskReadDto>> Create(TaskCreateDto taskDto)
     {
 
-    var newTask = new CloudTask
-    {
-        Name = taskDto.Name,
-        IsCompleted = false // Domyślnie nowe zadanie nie jest gotowe
-    };
+    	var newTask = new CloudTask
+    	{
+        	Name = taskDto.Name,
+        	IsCompleted = false // Domyślnie nowe zadanie nie jest gotowe
+    	};
 
 
-    _context.Tasks.Add(newTask);
-    await _context.SaveChangesAsync();
+    	_context.Tasks.Add(newTask);
+    	await _context.SaveChangesAsync();
 
-    var readDto = new TaskReadDto
-    {
-        Id = newTask.Id,
-        Name = newTask.Name,
-        IsCompleted = newTask.IsCompleted
-    };
+    	var readDto = new TaskReadDto
+    	{
+        	Id = newTask.Id,
+        	Name = newTask.Name,
+        	IsCompleted = newTask.IsCompleted
+    	};
 
     	return CreatedAtAction(nameof(GetById), new { id = readDto.Id }, readDto);
     }
