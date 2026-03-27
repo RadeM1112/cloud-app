@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:8081/api", 
+  baseURL: "https://cloud-task-manager-api-96346-dtewbcgxf6g8gzg7.germanywestcentral-01.azurewebsites.net/api", 
 });
 
-export default api;
+export default api

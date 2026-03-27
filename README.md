@@ -20,6 +20,9 @@ Service) w chmurze Azure.
     (dostępny w `/docs`).
 -   [x ] **Artefakt 2:** Konfiguracja środowiska Docker (w trakcie...).
    [x ] **Artefakt 3:** 
+   [x ] **Artefakt 4:** 
+   [x ] **Artefakt 5:** 
+   [x ] **Artefakt 6:** 
 
 > **Informacja:** Ten plik będzie ewoluował. W kolejnych etapach dodamy
 > tutaj sekcje 'Quick Start', opis zmiennych środowiskowych oraz

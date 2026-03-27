@@ -1,15 +1,23 @@
 using CloudBackend.Data;
-using Microsoft.EntityFrameworkCore;
 using CloudBackend.Models;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Controllers
 builder.Services.AddControllers();
 
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var connectionString= Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ?? builder.Configuration.GetConnectionString("DefaultConnection");
+// Connection string (Azure ENV > appsettings)
+var connectionString =
+    Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
+// DbContext
+// Rejestracja bazy danych z mechanizmem ponawiania prób (Retry Logic)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString,
         sqlOptions => sqlOptions.EnableRetryOnFailure(
@@ -18,12 +26,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)
     ));
 
-
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString)
-);
-
+// CORS (na start wszystko otwarte)
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -36,38 +39,40 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// 🔥 ROOT endpoint (żeby Azure nie wywalał błędu)
+app.MapGet("/", () => Results.Ok("API działa 🚀"));
+
+// Swagger
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// Middleware
+app.UseCors();
+app.MapControllers();
+
+// 🔥 DB init (bezpieczniejsza wersja)
 using (var scope = app.Services.CreateScope())
 {
-    var services = scope.ServiceProvider;
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
     try
     {
-        var context = services.GetRequiredService<AppDbContext>();
-        context.Database.EnsureCreated();
+        db.Database.Migrate(); // zamiast EnsureCreated()
 
-        if (!context.Tasks.Any())
+        if (!db.Tasks.Any())
         {
-            context.Tasks.AddRange(
+            db.Tasks.AddRange(
                 new CloudTask { Name = "Zrobić kawę", IsCompleted = true },
                 new CloudTask { Name = "Uruchomić projekt w Dockerze", IsCompleted = false }
             );
 
-            context.SaveChanges();
+            db.SaveChanges();
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Błąd podczas tworzenia bazy: {ex.Message}");
+        Console.WriteLine("DB ERROR: " + ex.Message);
     }
 }
 
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Cloud API V1");
-    c.RoutePrefix = string.Empty;
-});
-
-app.UseCors();
-app.MapControllers();
 app.Run();
