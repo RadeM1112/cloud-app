@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  # Warstwa Prezentacji (React)
+  frontend:
+    build: ./frontend
+    container_name: cloud-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - cloud-network
+    depends_on:
+      - backend
+
+  # Warstwa Logiki (.NET 9)
+  backend:
+    build: ./backend
+    container_name: cloud-backend
+    ports:
+      - "8081:8080"
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__DefaultConnection: "Server=cloud-db;Database=CloudAppDb;User Id=sa;Password=StrongPassword123!;TrustServerCertificate=True"
+    networks:
+      - cloud-network
+    depends_on:
+      cloud-db:
+        condition: service_healthy
+
+  # Warstwa Danych (SQL Edge)
+  cloud-db:
+    image: mcr.microsoft.com/azure-sql-edge
+    container_name: cloud-db
+    environment:
+      SA_PASSWORD: "StrongPassword123!"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    networks:
+      - cloud-network
+    volumes:
+      - sql-data:/var/opt/mssql 
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "StrongPassword123!", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+networks:
+  cloud-network:
+    driver: bridge
+    
+volumes:
+  sql-data:
+    
+ 
