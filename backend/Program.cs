@@ -1,34 +1,36 @@
 using CloudBackend.Data;
-using CloudBackend.Models;
 using Microsoft.EntityFrameworkCore;
-using Azure.Identity;
+using CloudBackend.Models;
+using Azure.Identity; // Potrzebne do DefaultAzureCredential
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- KEY VAULT (Production only) ---
+// --- NOWA SEKCJA: INTEGRACJA Z MAGAZYNEM KLUCZY (KEY VAULT) ---
+// Jeśli aplikacja działa w chmurze (Production), pobieramy hasła z sejfu
 if (builder.Environment.IsProduction())
 {
     var vaultName = builder.Configuration["KeyVaultName"];
     if (!string.IsNullOrEmpty(vaultName))
     {
         var keyVaultEndpoint = new Uri($"https://{vaultName}.vault.azure.net/");
+        // DefaultAzureCredential automatycznie użyje Tożsamości Zarządzanej w Azure
         builder.Configuration.AddAzureKeyVault(keyVaultEndpoint, new DefaultAzureCredential());
     }
 }
 
-// Controllers
-builder.Services.AddControllers();
+// --- SEKCJA USŁUG (Dependency Injection) ---
 
-// Swagger
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Connection string
-var connectionString =
-    Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+// Pobieramy Connection String. 
+// Jeśli jesteśmy w Azure, nazwa "DbConnectionString" zostanie automatycznie 
+// pobrana z Magazynu Kluczy dzięki powyższej konfiguracji.
+var connectionString = builder.Configuration["DbConnectionString"] 
+                       ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
-// DbContext
+// Rejestracja bazy danych z mechanizmem ponawiania prób (Retry Logic)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString,
         sqlOptions => sqlOptions.EnableRetryOnFailure(
@@ -37,65 +39,44 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)
     ));
 
-// ✅ CORS — konkretny frontend (ważne!)
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowFrontend", policy =>
-    {
-        policy.WithOrigins("https://cloud-task-manager-frontend-96346-c7a9g7gacdbrhbgm.germanywestcentral-01.azurewebsites.net")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+builder.Services.AddCors(options => {
+    options.AddDefaultPolicy(policy => {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
 var app = builder.Build();
 
-// Swagger
-app.UseSwagger();
-app.UseSwaggerUI();
-
-// ✅ ważne dla Azure
-app.UseHttpsRedirection();
-
-app.UseRouting();
-
-// ✅ KLUCZOWE: CORS w dobrym miejscu
-app.UseCors("AllowFrontend");
-
-app.UseAuthorization();
-
-// Controllers
-app.MapControllers();
-
-// ✅ Obsługa preflight (OPTIONS) – zabezpieczenie
-app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok());
-
-// Root endpoint (health check)
-app.MapGet("/", () => Results.Ok("API działa 🚀"));
-
-// DB init
+// --- AUTOMATYCZNE DANE STARTOWE ---
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
+    var services = scope.ServiceProvider;
     try
     {
-        db.Database.Migrate();
-
-        if (!db.Tasks.Any())
+        var context = services.GetRequiredService<AppDbContext>();
+        if (!context.Tasks.Any())
         {
-            db.Tasks.AddRange(
+            context.Tasks.AddRange(
                 new CloudTask { Name = "Zrobić kawę", IsCompleted = true },
-                new CloudTask { Name = "Uruchomić projekt w Dockerze", IsCompleted = false }
+                new CloudTask { Name = "Zabezpieczyć aplikację w Azure", IsCompleted = true }
             );
-
-            db.SaveChanges();
+            context.SaveChanges();
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine("DB ERROR: " + ex.Message);
+        Console.WriteLine($"Błąd bazy: {ex.Message}");
     }
 }
-
+// --- MIDDLEWARE ---
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Cloud API V1");
+    c.RoutePrefix = string.Empty; 
+});
+app.UseCors();
+app.MapControllers();
 app.Run();
