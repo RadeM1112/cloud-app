@@ -1,4 +1,4 @@
 {
     "appService.defaultWebAppToDeploy": "/subscriptions/0f229bba-fafa-48f6-b9ba-9b8f8f73bdd9/resourceGroups/rsgcloudapp/providers/Microsoft.Web/sites/cloud-task-manager-api-96346",
-    "appService.deploySubpath": "frontend/dist"
+    "appService.deploySubpath": "backend"
 }

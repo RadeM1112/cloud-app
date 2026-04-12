@@ -23,6 +23,7 @@ Service) w chmurze Azure.
    [x ] **Artefakt 4:** 
    [x ] **Artefakt 5:** 
    [x ] **Artefakt 6:** 
+   [x ] **Artefakt 7:** 
 
 > **Informacja:** Ten plik będzie ewoluował. W kolejnych etapach dodamy
 > tutaj sekcje 'Quick Start', opis zmiennych środowiskowych oraz

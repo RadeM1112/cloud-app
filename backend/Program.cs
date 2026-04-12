@@ -1,18 +1,17 @@
 using CloudBackend.Data;
 using CloudBackend.Models;
 using Microsoft.EntityFrameworkCore;
+using Azure.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- NOWA SEKCJA: INTEGRACJA Z MAGAZYNEM KLUCZY (KEY VAULT) ---
-// Jeśli aplikacja działa w chmurze (Production), pobieramy hasła z sejfu
+// --- KEY VAULT (Production only) ---
 if (builder.Environment.IsProduction())
 {
     var vaultName = builder.Configuration["KeyVaultName"];
     if (!string.IsNullOrEmpty(vaultName))
     {
         var keyVaultEndpoint = new Uri($"https://{vaultName}.vault.azure.net/");
-        // DefaultAzureCredential automatycznie użyje Tożsamości Zarządzanej w Azure
         builder.Configuration.AddAzureKeyVault(keyVaultEndpoint, new DefaultAzureCredential());
     }
 }
@@ -24,13 +23,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Connection string (Azure ENV > appsettings)
+// Connection string
 var connectionString =
     Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 // DbContext
-// Rejestracja bazy danych z mechanizmem ponawiania prób (Retry Logic)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString,
         sqlOptions => sqlOptions.EnableRetryOnFailure(
@@ -39,38 +37,50 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)
     ));
 
-// CORS (na start wszystko otwarte)
+// ✅ CORS — konkretny frontend (ważne!)
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.WithOrigins("https://cloud-task-manager-frontend-96346-c7a9g7gacdbrhbgm.germanywestcentral-01.azurewebsites.net")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
 var app = builder.Build();
 
-// 🔥 ROOT endpoint (żeby Azure nie wywalał błędu)
-app.MapGet("/", () => Results.Ok("API działa 🚀"));
-
 // Swagger
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Middleware
-app.UseCors();
+// ✅ ważne dla Azure
+app.UseHttpsRedirection();
+
+app.UseRouting();
+
+// ✅ KLUCZOWE: CORS w dobrym miejscu
+app.UseCors("AllowFrontend");
+
+app.UseAuthorization();
+
+// Controllers
 app.MapControllers();
 
-// 🔥 DB init (bezpieczniejsza wersja)
+// ✅ Obsługa preflight (OPTIONS) – zabezpieczenie
+app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok());
+
+// Root endpoint (health check)
+app.MapGet("/", () => Results.Ok("API działa 🚀"));
+
+// DB init
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
     try
     {
-        db.Database.Migrate(); // zamiast EnsureCreated()
+        db.Database.Migrate();
 
         if (!db.Tasks.Any())
         {
